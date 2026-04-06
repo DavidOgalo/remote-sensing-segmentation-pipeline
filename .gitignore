@@ -3,3 +3,5 @@ data/
 .checkpoints/
 .figures/
 .env
+docs/technical_report.md
+docs/system_design.md

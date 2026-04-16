@@ -1,8 +1,5 @@
 .DS_Store
 data/
 checkpoints/
-figures/
-docs/
 .env
-README.md
 *.pyc

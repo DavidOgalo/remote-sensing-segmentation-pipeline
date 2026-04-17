@@ -15,6 +15,8 @@
 
 ---
 
+For a deeper technical treatment of the loss formulation, experiment protocol, result interpretation, and conclusions, see the companion [Technical Report](technical_report.md). This system design document focuses on architecture and engineering rationale, while the report provides the full methodological and empirical detail.
+
 ## 1. Problem Framing
 
 ### 1.1 The core challenge
@@ -139,6 +141,8 @@ The ISPRS Potsdam dataset is a standard benchmark for urban remote sensing segme
 ### 4.2 Preprocessing pipeline
 
 ![PreprocessingPipeline](<PreprocessingPipeline.png>)
+
+Implementation note: this repository keeps `tools/dataset_converters/mmsegmentation_potsdam.py` as the direct reference copy of the official MMSegmentation Potsdam converter (`tools/dataset_converters/potsdam.py` in OpenMMLab). Because the active project environment encountered mmcv/mmengine compatibility issues on that upstream path, the project uses `tools/dataset_converters/custom_potsdam.py`, a custom implementation that follows the same conversion logic using Pillow, NumPy, and tqdm.
 
 ### 4.3 Point sampling detail
 

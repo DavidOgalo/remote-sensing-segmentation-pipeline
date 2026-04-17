@@ -447,16 +447,10 @@ class TestGammaParameter:
     def test_negative_gamma_raises(self):
         """
         Focal loss is only defined for gamma >= 0.
-        A negative gamma would amplify easy examples — likely a user error (documents behavior).
+        A negative gamma would amplify easy examples and should be rejected.
         """
-        loss_fn = PartialCrossEntropyLoss(gamma=-1.0)
-        B, C, H, W = 1, 3, 16, 16
-        logits  = torch.randn(B, C, H, W)
-        targets = torch.randint(0, C, (B, H, W))
-        mask    = torch.ones(B, H, W)
-        # At minimum, should not produce NaN
-        loss = loss_fn(logits, targets, mask)
-        assert torch.isfinite(loss), "Negative gamma produced non-finite loss"
+        with pytest.raises(ValueError, match='gamma must be >= 0'):
+            PartialCrossEntropyLoss(gamma=-1.0)
 
     def test_gamma_float_accepted(self):
         """Non-integer gamma (e.g., 1.5) should work fine."""

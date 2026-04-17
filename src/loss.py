@@ -29,6 +29,8 @@ class PartialCrossEntropyLoss(nn.Module):
 
     def __init__(self, gamma: float = 2.0, ignore_index: int = 255):
         super().__init__()
+        if gamma < 0:
+            raise ValueError(f'gamma must be >= 0. Got: {gamma}')
         self.gamma        = gamma
         self.ignore_index = ignore_index
 

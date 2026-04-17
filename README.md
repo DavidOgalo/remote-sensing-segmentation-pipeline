@@ -1,26 +1,56 @@
 # Partial Cross-Entropy Loss for Weakly-Supervised Remote Sensing Segmentation
 
-This repository implements and evaluates **Partial Cross-Entropy (pCE)** for weakly-supervised semantic segmentation on ISPRS Potsdam.
+## Overview
 
-Instead of training with dense pixel masks at every location, pCE learns from **sparse point annotations** only:
+This project implements and evaluates **Partial Cross-Entropy (pCE)** for weakly-supervised semantic segmentation on the ISPRS Potsdam benchmark. The central idea is to train a dense segmentation model using only sparse point annotations, rather than full pixel-wise supervision.
+
+The training objective is:
 
 ```
 pCE = Σ(FocalLoss(pred, GT) × MASK_labeled) / Σ(MASK_labeled)
 ```
 
-`MASK_labeled` is binary (`1` at labeled pixels, `0` elsewhere), so unlabeled pixels contribute zero gradient.
+`MASK_labeled` is binary (`1` at labeled pixels, `0` elsewhere), so unlabeled pixels contribute zero gradient while labeled pixels carry all supervision.
 
-## What Is Included
+## System Architecture
 
-- End-to-end notebook pipeline in `notebook.ipynb`
-- Standalone loss module in `src/loss.py`
-- Unit tests for loss correctness in `tests/test_loss.py`
-- Potsdam dataset converter scripts in `tools/dataset_converters/`
-- Final design and technical write-ups in `docs/system_design.md` and `docs/technical_report.md`
+For a detailed exploration of the system architecture, including design rationale, data flow, component responsibilities, tradeoffs, and deployment-oriented considerations, refer to the [System Design Document](docs/system_design.md). It provides a complete blueprint of the end-to-end pipeline and links naturally with the [Technical Report](docs/technical_report.md), which covers formulation details, experiment protocol, and result interpretation.
 
-## Final Reported Results (FULL_RUN Source of Truth)
+## Key Features
 
-These are the finalized metrics used across the report documents.
+- **Sparse-supervision training objective** using masked focal-weighted pCE
+- **End-to-end experiment pipeline** in [notebook.ipynb](notebook.ipynb), from data staging to final plots
+- **Two ablation studies**: point-density sensitivity and focal-gamma sensitivity
+- **Runtime-aware execution** for local kernels and Colab-style `/content` workflows
+- **Resumable experiments** with checkpointing and summary caching for long sweeps
+- **Tested loss module** via focused unit tests in [tests/test_loss.py](tests/test_loss.py)
+
+## Technical Components
+
+### Data Pipeline
+
+- Dataset: ISPRS Potsdam (6 semantic classes)
+- Conversion scripts: [tools/dataset_converters/custom_potsdam.py](tools/dataset_converters/custom_potsdam.py) and [tools/dataset_converters/mmsegmentation_potsdam.py](tools/dataset_converters/mmsegmentation_potsdam.py)
+- Cropped MMSeg-style layout under `data/potsdam/img_dir` and `data/potsdam/ann_dir`
+
+`tools/dataset_converters/mmsegmentation_potsdam.py` is the repository copy of the original Potsdam converter logic from the official MMSegmentation source (`tools/dataset_converters/potsdam.py`). For this project runtime, the upstream conversion path was not directly usable because of mmcv/mmengine compatibility constraints, so `tools/dataset_converters/custom_potsdam.py` was developed to replicate the same core conversion behavior using Pillow, NumPy, and tqdm.
+
+### Model and Optimization
+
+- Model: DeepLabV3+ with ResNet-50 encoder (ImageNet pretrained)
+- Loss: Partial Cross-Entropy with configurable focal gamma
+- Optimizer: AdamW (`lr=1e-4`, `weight_decay=1e-4`)
+- Scheduler: CosineAnnealingLR (`eta_min=1e-6`)
+- Tile size: 512x512
+
+### Evaluation
+
+- Metrics: validation mIoU and pixel accuracy
+- Evaluation target: full validation masks (not sparse point masks)
+
+## Final Reported Results
+
+These are the finalized metrics used across the submission documents.
 
 ### Experiment A: Point Density Ablation (`γ = 2.0`)
 
@@ -42,7 +72,7 @@ These are the finalized metrics used across the report documents.
 
 Best operating point: `density = 0.01`, `gamma = 2.0`, `best mIoU = 0.076`.
 
-## Repository Layout
+## Repository Structure
 
 ```text
 remote-sensing-segmentation-pipeline/
@@ -64,10 +94,11 @@ remote-sensing-segmentation-pipeline/
 ├── data/
 │   ├── dataset/
 │   └── potsdam/
+├── checkpoints/
 └── figures/
 ```
 
-## Setup
+## Getting Started
 
 ### 1. Create and activate environment
 
@@ -86,14 +117,12 @@ python -m pytest tests/test_loss.py -v
 
 ## Data Preparation
 
-The notebook supports two main workflows:
+The notebook supports:
 
-- Local workflow (VS Code / local Python kernel)
+- Local workflow (VS Code / local kernel)
 - Hosted workflow (Colab-style runtime with staged data)
 
-### Local data layout (recommended)
-
-Use the cropped MMSeg-style layout under `data/potsdam/`:
+Recommended local layout:
 
 ```text
 data/potsdam/
@@ -105,15 +134,17 @@ data/potsdam/
     └── val/
 ```
 
-If you start from raw Potsdam archives, convert with:
+If starting from raw Potsdam archives:
 
 ```bash
 python tools/dataset_converters/custom_potsdam.py data/dataset --out_dir data/potsdam --clip_size 512 --stride_size 256
 ```
 
-## Running the Notebook
+Note: the custom converter above mirrors the official MMSegmentation Potsdam conversion logic maintained in `tools/dataset_converters/mmsegmentation_potsdam.py`, and is used in this repository specifically to avoid mmcv/mmengine incompatibility issues in the active environment.
 
-Launch:
+## Running Experiments
+
+Launch notebook:
 
 ```bash
 jupyter notebook notebook.ipynb
@@ -121,70 +152,43 @@ jupyter notebook notebook.ipynb
 
 Run cells in order from top to bottom.
 
-### Run modes
+### Run Modes
 
-- `FAST_DEV_RUN`: reduced epochs and subsets for quick iteration
-- `FULL_RUN`: full sweep configuration
-
-Set mode through environment before starting the kernel:
+- `FAST_DEV_RUN`: reduced epochs/subsets for quick validation
+- `FULL_RUN`: full sweep for reportable runs
 
 ```bash
 export RUN_MODE=FAST_DEV_RUN
-```
-
-or:
-
-```bash
+# or
 export RUN_MODE=FULL_RUN
 ```
 
-### Optional single-run overrides
-
-You can run one configuration at a time:
+### Optional Single-Run Overrides
 
 ```bash
 export EXPERIMENT_A_DENSITY_OVERRIDE=0.01
 export EXPERIMENT_B_GAMMA_OVERRIDE=2.0
 ```
 
-Unset overrides to restore full sweeps:
+Unset to restore full sweeps:
 
 ```bash
 unset EXPERIMENT_A_DENSITY_OVERRIDE
 unset EXPERIMENT_B_GAMMA_OVERRIDE
 ```
 
-### Output locations
+### Output Artifacts
 
-Notebook outputs are written to:
+- `checkpoints/`: model checkpoints
+- `figures/`: plots and qualitative outputs
+- `results/`: experiment summary JSON files
 
-- `checkpoints/` for model states
-- `figures/` for plots
-- `results/` for summary JSON files
+Roots can be overridden via environment variables such as `POTSDAM_DATA_ROOT` and `POTSDAM_OUTPUT_ROOT`.
 
-The notebook also supports overriding roots via environment variables such as `POTSDAM_DATA_ROOT` and `POTSDAM_OUTPUT_ROOT`.
+## Supporting Documents
 
-## Method Summary
-
-- Model: DeepLabV3+ with ResNet-50 encoder (ImageNet pretrained)
-- Loss: Partial Cross-Entropy with optional focal weighting (`gamma`)
-- Optimizer: AdamW (`lr=1e-4`, `weight_decay=1e-4`)
-- Scheduler: CosineAnnealingLR (`eta_min=1e-6`)
-- Input size: 512x512 tiles
-- Classes: 6 (impervious, building, low vegetation, tree, car, clutter)
-
-## Key Project Files
-
-- `notebook.ipynb`: Full implementation and experiments
-- `src/loss.py`: Importable `PartialCrossEntropyLoss`
-- `tests/test_loss.py`: Unit and behavioral tests for pCE
-- `docs/technical_report.md`: Full technical write-up and final metrics
-- `docs/system_design.md`: System architecture and design rationale
-
-## Notes
-
-- Report metrics and interpretations are maintained in the docs as the official submission record.
-- Figures generated by notebook runs are saved in `figures/`.
+- [docs/system_design.md](docs/system_design.md): architecture and engineering rationale
+- [docs/technical_report.md](docs/technical_report.md): method detail, experiments, and analysis
 
 ## License
 

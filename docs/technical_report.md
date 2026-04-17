@@ -1,10 +1,7 @@
 # Technical Report
 ## Partial Cross-Entropy Loss for Weakly-Supervised Remote Sensing Segmentation
 
-**Author**: David Ogalo  
-**Assessment**: MeritiInc — Machine Learning Engineer
-
----
+**Author**: David Ogalo
 
 ## 1. Method
 
@@ -102,6 +99,8 @@ To address this, the notebook was structured around two explicit execution modes
 This split is an engineering choice rather than a methodological compromise. The purpose of `FAST_DEV_RUN` is to shorten the edit-test-debug cycle while preserving the same code path, loss function, model, and metric computation used in `FULL_RUN`. Final conclusions are drawn only from `FULL_RUN` outputs.
 
 The data pipeline follows the same principle. For hosted GPU runs, training should occur from Colab local SSD (`/content`) rather than directly from the Google Drive mount, because Drive-backed per-file reads create avoidable I/O latency across thousands of cropped tiles. To reduce setup cost further, the notebook first looks for preprocessed `img_dir.zip` and `ann_dir.zip` archives on Drive, extracts them into `/content/data/potsdam`, and only falls back to raw Potsdam conversion when those processed archives are not available. This minimizes redundant preprocessing while keeping training throughput high.
+
+For conversion provenance, `tools/dataset_converters/mmsegmentation_potsdam.py` in this repository is the reference copy of the original official MMSegmentation Potsdam converter (`tools/dataset_converters/potsdam.py`). Because the upstream conversion stack was not directly usable in the project environment due to mmcv/mmengine compatibility issues, the project uses `tools/dataset_converters/custom_potsdam.py`, which replicates the same core conversion logic with Pillow, NumPy, and tqdm.
 
 To avoid wasting compute on interrupted or clearly plateaued runs, the training loop also supports resumable checkpoints and validation-based early stopping. Each experiment still uses the same model, optimizer family, loss, dataset split, and evaluation metrics; the runtime optimizations only reduce redundant work and allow long sweeps to be continued safely after session interruptions.
 
